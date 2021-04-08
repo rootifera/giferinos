@@ -25,8 +25,7 @@ parser.add_argument('-r2', '--randend', type=int,
 args = parser.parse_args()
 
 if args.source == None or args.destination == None:
-    print("Please enter a valid source and a destination folder. Rest is optional. Try --help for details")
-    raise SystemExit()
+    raise SystemExit("Please enter a valid source and a destination folder. Rest is optional. Try --help for details")
 
 os.chdir(args.source)
 save_to = args.destination
