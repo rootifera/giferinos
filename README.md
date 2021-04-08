@@ -9,6 +9,10 @@ The purpose of Giferinos is to generate gifs from video files. It uses ffmpeg di
 If your source folder has multiple video files they will be processed one by one. If the videos under
 your source folder are in separate subfolders you will have the exact same folder hierarchy in the destination folder. 
 
+### Disclaimer
+
+Use it at your own risk. I'm not responsible of any of the damage this script may cause.  
+<em>(Although I would like to know how you managed to damage something with this script, would be a fun story to listen)</em>
 
 ### Installing
 
@@ -40,14 +44,14 @@ git clone https://github.com/rootifera/giferinos.git
 
 * Linux:
 
-If you don't want to use defaults just run the following. 
+If you want to use defaults run the following. 
 ```
 ~/giferinos$ ./giferinos.py --source=/path/to/videos/ --destination=/where/to/save/gifs/
 ```
 
 * Windows:
 
-Just like Linux the most basic way is giving source and destination folders. Only difference is the way we enter path.
+Just like Linux the most basic way is giving source and destination folders. Only difference is the way we enter path. 
 
 ```
 C:\giferinos-main> python giferinos.py --source=C:\\path\\to\\videos\\ --destination=D:\\where\\to\\save\\gifs\\
