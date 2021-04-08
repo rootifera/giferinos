@@ -1,7 +1,7 @@
 import glob
 import os
 import subprocess
-# import time
+import random
 
 os.chdir("/mnt/i/Gifs/Movies/")
 save_to = '/mnt/i/Gifs/Generated/'
@@ -19,7 +19,7 @@ for file in glob.iglob('**/*.mp4', recursive=True):
     current_time = 90
 
     while current_time <= int(float(video_duration)):
-        current_time = current_time + 120
+        current_time = current_time + (random.randrange(20, 80))
         # print(current_time)
         # print(int(float(video_duration)))
         if current_time > int(float(video_duration)):
