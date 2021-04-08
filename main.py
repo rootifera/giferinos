@@ -12,10 +12,10 @@ parser.add_argument('-l', '--length', type=str, help='gif length in seconds (def
 parser.add_argument('-b', '--begin', type=int,
                     help='gif generation starts from this value. Good for skipping intros(in seconds, default 90s)',
                     default=90)
-parser.add_argument('-r1', '--rand1', type=int,
+parser.add_argument('-r1', '--randstart', type=int,
                     help='sets the start value of the randomizer. Minimum distance from the previous gif in seconds (default 20s)',
                     default=20)
-parser.add_argument('-r2', '--rand2', type=int,
+parser.add_argument('-r2', '--randend', type=int,
                     help='sets the end value of the randomizer. Maximum distance from the previous gif in seconds (default 80s)',
                     default=80)
 args = parser.parse_args()
@@ -34,8 +34,8 @@ for file in glob.iglob('**/*.mp4', recursive=True):
          file], universal_newlines=True).strip()
 
     current_time = args.begin
-    random_start = args.rand1
-    random_end = args.rand2
+    random_start = args.randstart
+    random_end = args.randend
 
     while current_time <= int(float(video_duration)):
         current_time = current_time + (random.randrange(random_start, random_end))
