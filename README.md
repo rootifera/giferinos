@@ -87,18 +87,18 @@ Rootifera
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE.md file for details
+This project is licensed under the MIT License - see the LICENSE file for details
 
 ## FAQ
 
-Q: Why are you using ffmpeg directly instead of using ffmpeg's python module?
+Q: Why are you using ffmpeg directly instead of using ffmpeg's python module?  
 A: This is easier. I didn't want to go through all that documentation.
 
-Q: Is this the most efficient way of generating gif files from videos?
+Q: Is this the most efficient way of generating gif files from videos?  
 A: No idea, probably not. 
 
-Q: Your code is an absolute mess, what kind of developer are you?
+Q: Your code is an absolute mess, what kind of developer are you?  
 A: I'm not a developer. I'm a SysAdmin, this is the best I can do. Don't like it? Improve it.
 
-Q: I can't make it work. Can you help? 
+Q: I can't make it work. Can you help?  
 A: Sure, please create and issue and I'll try my best to help.
