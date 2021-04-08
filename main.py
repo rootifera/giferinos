@@ -1,9 +1,12 @@
+#!/usr/bin/python3
+
 import glob
 import os
 import subprocess
 import random
 import argparse
 import magic
+import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--source', type=str, help='source videos full path (recursive)')
@@ -23,6 +26,8 @@ args = parser.parse_args()
 
 os.chdir(args.source)
 save_to = args.destination
+
+progress_start = time.time()
 
 for file in glob.iglob('**/*.*', recursive=True):
     split_path_name = file.split("/")
@@ -61,3 +66,8 @@ for file in glob.iglob('**/*.*', recursive=True):
                  filename_generator % (file, current_time)],
                 stderr=subprocess.STDOUT,
                 universal_newlines=True).strip()
+
+progress_end = time.time()
+total_run = int(progress_end - progress_start)
+print("== FINISHED ==")
+print("Total Runtime: " + str(total_run) + " seconds")
