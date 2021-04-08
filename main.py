@@ -3,6 +3,7 @@ import os
 import subprocess
 import random
 import argparse
+import magic
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--source', type=str, help='source videos full path (recursive)')
@@ -23,31 +24,36 @@ args = parser.parse_args()
 os.chdir(args.source)
 save_to = args.destination
 
-for file in glob.iglob('**/*.mp4', recursive=True):
+
+
+for file in glob.iglob('**/*.*', recursive=True):
     split_path_name = file.split("/")
     folder = save_to + split_path_name[0]
 
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-    video_duration = subprocess.check_output(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
-         file], universal_newlines=True).strip()
+    file_type = magic.from_file(file, mime=True)[0:5]
 
-    current_time = args.begin
-    random_start = args.randstart
-    random_end = args.randend
+    if file_type == 'video':  
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        video_duration = subprocess.check_output(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
+            file], universal_newlines=True).strip()
 
-    while current_time <= int(float(video_duration)):
-        current_time = current_time + (random.randrange(random_start, random_end))
-        if current_time > int(float(video_duration)):
-            break
+        current_time = args.begin
+        random_start = args.randstart
+        random_end = args.randend
 
-        filename_generator = args.destination + '%s-%s.gif'
-        gif_length = args.length
+        while current_time <= int(float(video_duration)):
+            current_time = current_time + (random.randrange(random_start, random_end))
+            if current_time > int(float(video_duration)):
+                break
 
-        subprocess.check_output(
-            ['ffmpeg', '-y', '-ss', str(current_time), '-t', gif_length, '-i', file, '-filter_complex',
-             '[0:v] fps=12,scale=w=480:h=-1,split [a][b];[a] palettegen=stats_mode=single [p];['
-             'b][p] paletteuse=new=1',
-             filename_generator % (file, current_time)],
-            universal_newlines=True).strip()
+            filename_generator = args.destination + '%s-%s.gif'
+            gif_length = args.length
+
+            subprocess.check_output(
+                ['ffmpeg', '-y', '-ss', str(current_time), '-t', gif_length, '-i', file, '-filter_complex',
+                '[0:v] fps=12,scale=w=480:h=-1,split [a][b];[a] palettegen=stats_mode=single [p];['
+                'b][p] paletteuse=new=1',
+                filename_generator % (file, current_time)],
+                universal_newlines=True).strip()
