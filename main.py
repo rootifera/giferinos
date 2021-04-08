@@ -24,6 +24,9 @@ parser.add_argument('-r2', '--randend', type=int,
                     default=80)
 args = parser.parse_args()
 
+if args.source == None or args.destination == None:
+    raise SystemExit("Please enter a valid source and a destination folder. Rest is optional. Try --help for details")
+
 os.chdir(args.source)
 save_to = args.destination
 
@@ -56,8 +59,12 @@ for file in glob.iglob('**/*.*', recursive=True):
             filename_generator = args.destination + '%s-%s.gif'
             gif_length = args.length
 
-            progress = int(current_time / video_duration * 100)
-            print(str(progress) + "% done")
+            progress = int(current_time / video_duration * 100)      
+
+            if progress % 10 == 0:
+                print("Current file reminder: " + file)
+            else:
+                print(str(progress) + "% done")    
 
             subprocess.check_output(
                 ['ffmpeg', '-y', '-ss', str(current_time), '-t', gif_length, '-i', file, '-filter_complex',
