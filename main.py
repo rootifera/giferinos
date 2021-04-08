@@ -1,9 +1,12 @@
+#!/usr/bin/python3
+
 import glob
 import os
 import subprocess
 import random
 import argparse
 import magic
+import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--source', type=str, help='source videos full path (recursive)')
@@ -24,7 +27,7 @@ args = parser.parse_args()
 os.chdir(args.source)
 save_to = args.destination
 
-
+progress_start = time.time()
 
 for file in glob.iglob('**/*.*', recursive=True):
     split_path_name = file.split("/")
@@ -32,28 +35,39 @@ for file in glob.iglob('**/*.*', recursive=True):
 
     file_type = magic.from_file(file, mime=True)[0:5]
 
-    if file_type == 'video':  
+    if file_type == 'video':
         if not os.path.exists(folder):
             os.makedirs(folder)
-        video_duration = subprocess.check_output(
+        video_duration = (int(float(subprocess.check_output(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
-            file], universal_newlines=True).strip()
+             file], universal_newlines=True).strip())))
 
         current_time = args.begin
         random_start = args.randstart
         random_end = args.randend
 
-        while current_time <= int(float(video_duration)):
+        print("Current file: " + args.destination + file)
+
+        while current_time <= video_duration:
             current_time = current_time + (random.randrange(random_start, random_end))
-            if current_time > int(float(video_duration)):
+            if current_time > video_duration:
                 break
 
             filename_generator = args.destination + '%s-%s.gif'
             gif_length = args.length
 
+            progress = int(current_time / video_duration * 100)
+            print(str(progress) + "% done")
+
             subprocess.check_output(
                 ['ffmpeg', '-y', '-ss', str(current_time), '-t', gif_length, '-i', file, '-filter_complex',
-                '[0:v] fps=12,scale=w=480:h=-1,split [a][b];[a] palettegen=stats_mode=single [p];['
-                'b][p] paletteuse=new=1',
-                filename_generator % (file, current_time)],
+                 '[0:v] fps=12,scale=w=480:h=-1,split [a][b];[a] palettegen=stats_mode=single [p];['
+                 'b][p] paletteuse=new=1',
+                 filename_generator % (file, current_time)],
+                stderr=subprocess.STDOUT,
                 universal_newlines=True).strip()
+
+progress_end = time.time()
+total_run = int(progress_end - progress_start)
+print("== FINISHED ==")
+print("Total Runtime: " + str(total_run) + " seconds")
