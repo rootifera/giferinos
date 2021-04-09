@@ -1,6 +1,6 @@
 # Giferinos 
 
-A gif generator written in python
+An ffmpeg gif generator wrapper written in python
 
 ## Description
 
@@ -105,4 +105,4 @@ Q: Your code is an absolute mess, what kind of developer are you?
 A: I'm not a developer. I'm a SysAdmin, this is the best I can do. Don't like it? Improve it.
 
 Q: I can't make it work. Can you help?  
-A: Sure, please create and issue and I'll try my best to help.
+A: Sure, please create an issue and I'll try my best to help.
