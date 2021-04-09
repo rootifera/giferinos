@@ -80,6 +80,14 @@ optional arguments:
                         (default 80s)
 ```
 
+## Known Issues
+
+Script fails if the directories has a dot in them. 
+
+```
+IsADirectoryError: [Errno 21] Is a directory: 'Folder.with.a.dot'
+```
+
 ## Author
 
 Rootifera
