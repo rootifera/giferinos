@@ -82,7 +82,7 @@ optional arguments:
 
 ## Known Issues
 
-Script fails if the directories has a dot in them. 
+Resolved: Script fails if the directories has a dot in them. 
 
 ```
 IsADirectoryError: [Errno 21] Is a directory: 'Folder.with.a.dot'
