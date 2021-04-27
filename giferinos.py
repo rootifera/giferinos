@@ -10,6 +10,7 @@ import time
 import signal
 import sys
 from progress.bar import ChargingBar
+from progress.spinner import PixelSpinner
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--source', type=str, help='source videos full path (recursive)')
@@ -31,14 +32,15 @@ args = parser.parse_args()
 
 # Check if at least the source and the destination is set
 if args.source is None or args.destination is None:
-    raise SystemExit("Please enter a valid source and a destination folder. Rest is optional. Please use --help for details")
+    raise SystemExit("Please enter a valid source and a destination folder. Rest is optional. "
+                     "Please use --help for details")
 
 os.chdir(args.source)
 save_to = args.destination
 
 
 # Clean exit with CTRL+C
-def signal_handler(signal, frame):
+def signal_handler(_, frame):
     print("   Exiting...")
     sys.exit(0)
 
@@ -47,61 +49,73 @@ signal.signal(signal.SIGINT, signal_handler)
 
 
 def generate_gif(input_file):
-    if not os.path.isdir(input_file):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
 
-        # this check returns something like "video/mp4"
-        if magic.from_file(input_file, mime=True)[:5] == 'video':
-            if not os.path.exists(folder):
-                os.makedirs(folder)
-            video_duration = (int(float(subprocess.check_output(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
-                 "default=noprint_wrappers=1:nokey=1",
-                 input_file], universal_newlines=True).strip())))
+    video_duration = (int(float(subprocess.check_output(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
+         "default=noprint_wrappers=1:nokey=1",
+         input_file], universal_newlines=True).strip())))
 
-            # creating vars for easy reading
-            current_time = args.begin
-            random_start = args.randstart
-            random_end = args.randend
+    # creating vars for easy reading
+    current_time = args.begin
+    random_start = args.randstart
+    random_end = args.randend
 
-            
-            if len(input_file.split("/")) == 1:
-                print("Current file: " + input_file)
-            else:
-                print("Current file: " + input_file.split("/")[1])
-                
+    # workaround for videos in source root folder
+    if len(input_file.split("/")) == 1:
+        print("\nCurrent file: " + input_file)
+    else:
+        print("\nCurrent file: " + input_file.split("/")[1])
 
-            bar = ChargingBar('Processing', max=video_duration)
-            # initialize bar
-            bar.goto(0)
+    bar = ChargingBar('Processing', max=video_duration)
+    # initialize bar
+    bar.goto(0)
 
-            while current_time <= video_duration:
-                current_time = current_time + (random.randrange(random_start, random_end))
-                if current_time > video_duration:
-                    break
+    while current_time <= video_duration:
+        current_time = current_time + (random.randrange(random_start, random_end))
+        if current_time > video_duration:
+            # set progress bar to 100% before breaking
+            bar.goto(video_duration)
+            break
 
-                # creating vars for easy reading
-                filename_generator = args.destination + '%s-%s.gif'
-                gif_length = args.length
+        # creating vars for easy reading
+        filename_generator = args.destination + '%s-%s.gif'
+        gif_length = args.length
 
-                # you can increase the fps=12 and scale=w=480 values with a higher number for smoother/bigger gifs,
-                # increases the file size.
-                subprocess.check_output(
-                    ['ffmpeg', '-y', '-ss', str(current_time), '-t', gif_length, '-i', input_file, '-filter_complex',
-                     '[0:v] fps=12,scale=w=480:h=-1,split [a][b];[a] palettegen=stats_mode=single [p];['
-                     'b][p] paletteuse=new=1',
-                     filename_generator % (input_file, current_time)],
-                    stderr=subprocess.STDOUT,
-                    universal_newlines=True).strip()
-                bar.goto(current_time)
-            bar.finish()
+        # you can increase the fps=12 and scale=w=480 values with a higher number for smoother/bigger gifs,
+        # increases the file size.
+        subprocess.check_output(
+            ['ffmpeg', '-y', '-ss', str(current_time), '-t', gif_length, '-i', input_file, '-filter_complex',
+             '[0:v] fps=12,scale=w=480:h=-1,split [a][b];[a] palettegen=stats_mode=single [p];['
+             'b][p] paletteuse=new=1',
+             filename_generator % (input_file, current_time)],
+            stderr=subprocess.STDOUT,
+            universal_newlines=True).strip()
+        bar.goto(current_time)
+    bar.finish()
 
 
 progress_start = time.time()
 
-for file in glob.iglob('**/*.*', recursive=True):
-    split_path_name = file.split("/")
-    folder = save_to + split_path_name[0]
-    generate_gif(file)
+video_files = []
+video_files_populated = False
+spinner = PixelSpinner('Please wait while generating video files list ')
+
+
+while not video_files_populated:
+    for file in glob.iglob('**/*.*', recursive=True):
+        split_path_name = file.split("/")
+        folder = save_to + split_path_name[0]
+        if not os.path.isdir(file):
+            if magic.from_file(file, mime=True)[:5] == 'video':
+                video_files.append(file)
+                spinner.next()
+    video_files_populated = True
+
+
+for video in range(len(video_files)):
+    generate_gif(video_files[video])
 
 progress_end = time.time()
 total_run = int(progress_end - progress_start)
