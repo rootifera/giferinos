@@ -31,19 +31,20 @@ args = parser.parse_args()
 
 # Check if at least the source and the destination is set
 if args.source is None or args.destination is None:
-    raise SystemExit("Please enter a valid source and a destination folder. Rest is optional. Try --help for details")
+    raise SystemExit("Please enter a valid source and a destination folder. Rest is optional. Please use --help for details")
 
 os.chdir(args.source)
 save_to = args.destination
 
-progress_start = time.time()
 
 # Clean exit with CTRL+C
 def signal_handler(signal, frame):
-  print("   Exiting...")  
-  sys.exit(0)
+    print("   Exiting...")
+    sys.exit(0)
+
 
 signal.signal(signal.SIGINT, signal_handler)
+
 
 def generate_gif(input_file):
     if not os.path.isdir(input_file):
@@ -65,6 +66,8 @@ def generate_gif(input_file):
             print("Current file: " + input_file.split("/")[1])
 
             bar = ChargingBar('Processing', max=video_duration)
+            # initialize bar
+            bar.goto(0)
 
             while current_time <= video_duration:
                 current_time = current_time + (random.randrange(random_start, random_end))
@@ -88,12 +91,12 @@ def generate_gif(input_file):
             bar.finish()
 
 
+progress_start = time.time()
+
 for file in glob.iglob('**/*.*', recursive=True):
     split_path_name = file.split("/")
     folder = save_to + split_path_name[0]
     generate_gif(file)
-
-
 
 progress_end = time.time()
 total_run = int(progress_end - progress_start)
