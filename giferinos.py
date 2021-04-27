@@ -24,6 +24,7 @@ parser.add_argument('-r2', '--randend', type=int,
                     default=80)
 args = parser.parse_args()
 
+# Check if at least the source and the destination is set
 if args.source == None or args.destination == None:
     raise SystemExit("Please enter a valid source and a destination folder. Rest is optional. Try --help for details")
 
@@ -32,50 +33,54 @@ save_to = args.destination
 
 progress_start = time.time()
 
-for file in glob.iglob('**/*.*', recursive=True):
-    split_path_name = file.split("/")
-    folder = save_to + split_path_name[0]
+def generate_gif(input_file):
+    if not os.path.isdir(input_file):
 
-    if not os.path.isdir(file):
-
-        file_type = magic.from_file(file, mime=True)[0:5]
-
-        if file_type == 'video':
+        # this check returns something like "video/mp4"
+        if magic.from_file(input_file, mime=True)[:5] == 'video':
             if not os.path.exists(folder):
                 os.makedirs(folder)
             video_duration = (int(float(subprocess.check_output(
                 ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
                  "default=noprint_wrappers=1:nokey=1",
-                 file], universal_newlines=True).strip())))
+                 input_file], universal_newlines=True).strip())))
 
+            # creating vars for easy reading
             current_time = args.begin
             random_start = args.randstart
             random_end = args.randend
 
-            print("Current file: " + args.destination + file)
+            print("Current file: " + args.destination + input_file)
 
             while current_time <= video_duration:
                 current_time = current_time + (random.randrange(random_start, random_end))
                 if current_time > video_duration:
                     break
 
+                # creating vars for easy reading
                 filename_generator = args.destination + '%s-%s.gif'
                 gif_length = args.length
 
                 progress = int(current_time / video_duration * 100)
 
                 if progress % 10 == 0:
-                    print("Current file reminder: " + file)
+                    print("Current file reminder: " + input_file)
                 else:
                     print(str(progress) + "% done")
 
+                # you can increase the fps=12 and scale=w=480 values with a higher number for smoother/bigger gifs, increases the file size. 
                 subprocess.check_output(
-                    ['ffmpeg', '-y', '-ss', str(current_time), '-t', gif_length, '-i', file, '-filter_complex',
+                    ['ffmpeg', '-y', '-ss', str(current_time), '-t', gif_length, '-i', input_file, '-filter_complex',
                      '[0:v] fps=12,scale=w=480:h=-1,split [a][b];[a] palettegen=stats_mode=single [p];['
                      'b][p] paletteuse=new=1',
-                     filename_generator % (file, current_time)],
+                     filename_generator % (input_file, current_time)],
                     stderr=subprocess.STDOUT,
                     universal_newlines=True).strip()
+
+for file in glob.iglob('**/*.*', recursive=True):
+    split_path_name = file.split("/")
+    folder = save_to + split_path_name[0]
+    generate_gif(file)
 
 progress_end = time.time()
 total_run = int(progress_end - progress_start)
