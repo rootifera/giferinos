@@ -63,7 +63,12 @@ def generate_gif(input_file):
             random_start = args.randstart
             random_end = args.randend
 
-            print("Current file: " + input_file.split("/")[1])
+            
+            if len(input_file.split("/")) == 1:
+                print("Current file: " + input_file)
+            else:
+                print("Current file: " + input_file.split("/")[1])
+                
 
             bar = ChargingBar('Processing', max=video_duration)
             # initialize bar
