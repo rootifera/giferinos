@@ -102,7 +102,6 @@ video_files = []
 video_files_populated = False
 spinner = PixelSpinner('Please wait while generating video files list ')
 
-
 while not video_files_populated:
     for file in glob.iglob('**/*.*', recursive=True):
         split_path_name = file.split("/")
@@ -112,7 +111,6 @@ while not video_files_populated:
                 video_files.append(file)
                 spinner.next()
     video_files_populated = True
-
 
 for video in range(len(video_files)):
     generate_gif(video_files[video])

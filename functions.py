@@ -35,3 +35,16 @@ def get_video_files(source_folder):
 
     return video_files
 
+
+def gen_gif(video_item):
+    filename_generator = '%s-%s.gif'
+    subprocess.check_output(
+        ['ffmpeg', '-y', '-ss', '50', '-t', '5', '-i', video_item, '-filter_complex',
+         '[0:v] fps=12,scale=w=480:h=-1,split [a][b];[a] palettegen=stats_mode=single [p];['
+         'b][p] paletteuse=new=1',
+         filename_generator % (video_item, 50)],
+        stderr=subprocess.STDOUT,
+        universal_newlines=True).strip()
+
+
+gen_gif("/root/videos/season1/video_1.mp4")
