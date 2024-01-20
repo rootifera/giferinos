@@ -30,7 +30,7 @@ parser.add_argument('-r2', '--randend', type=int,
                     default=80)
 args = parser.parse_args()
 
-# Check if at least the source and the destination is set
+# Check if at least the source and the destination are set
 if args.source is None or args.destination is None:
     raise SystemExit("Please enter a valid source and a destination folder. Rest is optional. "
                      "Please use --help for details")
