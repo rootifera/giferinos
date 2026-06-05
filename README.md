@@ -1,116 +1,97 @@
-# Giferinos 
+# Giferinos
 
-An ffmpeg gif generator wrapper written in python
+Giferinos is a small ffmpeg wrapper for generating short GIFs from videos.
 
-## Description
+By default it creates 5 second GIFs every 30 seconds from every video under a
+source folder. Output keeps the source folder hierarchy and puts each video's
+GIFs in a folder named after that video.
 
-The purpose of Giferinos is to generate gifs from video files. It uses ffmpeg directly to achieve that. 
+## Requirements
 
-If your source folder has multiple video files they will be processed one by one. If the videos under
-your source folder are in separate subfolders you will have the exact same folder hierarchy in the destination folder. 
+- Python 3.10+
+- `ffmpeg` and `ffprobe` available on your `PATH`
 
-### Disclaimer
+Install the optional Python dependency:
 
-Use it at your own risk. I'm not responsible of any of the damage this script may cause.  
-<em>(Although I would like to know how you managed to damage something with this script, would be a fun story to listen)</em>
-
-### Installing
-
-There is no installation. Script runs just like any other python script. Since the script uses ffmpeg directly 
-you need ffmpeg installed in your system before running this script.
-
-I tested the script with Ubuntu 20.04 running under Windows 10 WSL and directly under Windows 10. 
-
-* Linux:
-
-```
-sudo apt-get install ffmpeg                      # or whatever your distro has for installing packages.
-git clone https://github.com/rootifera/giferinos.git
-cd giferinos
+```bash
 pip install -r requirements.txt
 ```
 
-* Windows:
+`python-magic` lets Giferinos detect video files by MIME type when the extension
+is unusual. Common video extensions work without it.
 
-Install ffmpeg for Windows:
-https://ffmpeg.org/download.html
+## Usage
 
-```
-pip install python-magic-win64 python-magic-bin
-git clone https://github.com/rootifera/giferinos.git
-```
+Generate 5 second GIFs every 30 seconds:
 
-### Executing program
-
-* Linux:
-
-If you want to use defaults run the following. 
-```
-~/giferinos$ ./giferinos.py --source=/path/to/videos/ --destination=/where/to/save/gifs/
+```bash
+python main.py --source /path/to/videos --destination /path/to/gifs
 ```
 
-* Windows:
+Change the GIF length and spacing:
 
-Just like Linux the most basic way is giving source and destination folders. Only difference is the way we enter path. 
-
-```
-C:\giferinos-main> python giferinos.py --source=C:\\path\\to\\videos\\ --destination=D:\\where\\to\\save\\gifs\\
+```bash
+python main.py --source /path/to/videos --destination /path/to/gifs --gif-length 4 --skip-seconds 45
 ```
 
-There are few more options you can use to customize your gifs. 
+Change the output size:
 
-```
-usage: giferinos.py [-h] [-s SOURCE] [-d DESTINATION] [-l LENGTH] [-b BEGIN] [-r1 RANDSTART] [-r2 RANDEND]
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -s SOURCE, --source SOURCE
-                        source videos full path (recursive)
-  -d DESTINATION, --destination DESTINATION
-                        location to save gifs (each video creates a folder same name as the video)
-  -l LENGTH, --length LENGTH
-                        gif length in seconds (default 4.3s)
-  -b BEGIN, --begin BEGIN
-                        gif generation starts from this value. Good for skipping intros(in seconds, default 90s)
-  -r1 RANDSTART, --randstart RANDSTART
-                        sets the start value of the randomizer. Minimum distance from the previous gif in seconds
-                        (default 20s)
-  -r2 RANDEND, --randend RANDEND
-                        sets the end value of the randomizer. Maximum distance from the previous gif in seconds
-                        (default 80s)
+```bash
+python main.py --source /path/to/videos --destination /path/to/gifs --size 720
 ```
 
-## Known Issues
+Skip an intro before generating the first GIF:
 
-Resolved: Script fails if the directories has a dot in them. 
-
-```
-IsADirectoryError: [Errno 21] Is a directory: 'Folder.with.a.dot'
+```bash
+python main.py --source /path/to/videos --destination /path/to/gifs --begin 90
 ```
 
-## Author
+Use randomized spacing instead of a fixed interval:
 
-Rootifera
+```bash
+python main.py --source /path/to/videos --destination /path/to/gifs --random-min 20 --random-max 80
+```
 
-## Version History
+Preview the work without creating files:
 
-* 0.1
-    * Initial Release
+```bash
+python main.py --source /path/to/videos --destination /path/to/gifs --dry-run
+```
+
+## Options
+
+```text
+-s, --source         folder containing source videos; scanned recursively
+-d, --destination    folder where generated gifs will be written
+-l, --length,
+    --gif-length     gif length in seconds (default: 5)
+-b, --begin          seconds to skip before the first gif (default: 0)
+-e, --every,
+    --skip-seconds   seconds to advance before starting the next gif (default: 30)
+--random-min, -r1    minimum randomized seconds between gifs
+--random-max, -r2    maximum randomized seconds between gifs
+--seed               seed for repeatable randomized intervals
+--fps                gif frames per second (default: 12)
+-w, --width,
+    --size           gif width in pixels; height is preserved (default: 480)
+--dry-run            show planned gifs without running ffmpeg
+-v, --verbose        print ffmpeg commands and extra video details
+```
+
+While it runs, Giferinos shows scan progress and GIF creation progress:
+
+```text
+Scanning videos... checked 120 file(s), found 6 video(s)
+Found 6 video(s)
+[video 1/6] episode-01.mp4: 12 gif(s)
+  [gif 1/12] creating episode-01-0s.gif from 0s
+```
+
+## Notes
+
+If `--begin` is after the last valid start time for a video, Giferinos falls
+back to `0` seconds so short videos still get a GIF when possible.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details
-
-## FAQ
-
-Q: Why are you using ffmpeg directly instead of using ffmpeg's python module?  
-A: This is easier. I didn't want to go through all that documentation.
-
-Q: Is this the most efficient way of generating gif files from videos?  
-A: No idea, probably not. 
-
-Q: Your code is an absolute mess, what kind of developer are you?  
-A: I'm not a developer. I'm a SysAdmin, this is the best I can do. Don't like it? Improve it.
-
-Q: I can't make it work. Can you help?  
-A: Sure, please create an issue and I'll try my best to help.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

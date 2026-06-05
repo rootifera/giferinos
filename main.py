@@ -1,158 +1,343 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
+from __future__ import annotations
 
-import glob
-import os
-import subprocess
-import random
 import argparse
-import magic
-import time
-import signal
+import subprocess
 import sys
-from progress.bar import ChargingBar
-from progress.spinner import PixelSpinner
+import time
+from pathlib import Path
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-s', '--source', type=str, help='source videos full path (recursive)')
-parser.add_argument('-d', '--destination', type=str,
-                    help='location to save gifs (each video creates a folder same name as the video)')
-parser.add_argument('-l', '--length', type=str, help='gif length in seconds (default 4.3s)', default='4.3')
-parser.add_argument('-b', '--begin', type=int,
-                    help='gif generation starts from this value. Good for skipping intros(in seconds, default 90s)',
-                    default=90)
-parser.add_argument('-r1', '--randstart', type=int,
-                    help='sets the start value of the randomizer. Minimum distance from the previous gif in seconds '
-                         '(default 20s)',
-                    default=20)
-parser.add_argument('-r2', '--randend', type=int,
-                    help='sets the end value of the randomizer. Maximum distance from the previous gif in seconds '
-                         '(default 80s)',
-                    default=80)
-parser.add_argument('--dry-run', action='store_true',
-                    help='scan and plan gifs without running ffmpeg')
-parser.add_argument('-v', '--verbose', action='store_true',
-                    help='print debug information')
-args = parser.parse_args()
-
-# Check if at least the source and the destination are set
-if args.source is None or args.destination is None:
-    raise SystemExit("Please enter a valid source and a destination folder. Rest is optional. "
-                     "Please use --help for details")
-
-source_root = os.path.abspath(args.source)
-dest_root = os.path.abspath(args.destination)
-
-os.chdir(source_root)
-os.makedirs(dest_root, exist_ok=True)
+from functions import (
+    build_timestamps,
+    get_video_duration,
+    get_video_files,
+    require_executable,
+)
 
 
-# Clean exit with CTRL+C
-def signal_handler(_, frame):
-    print("   Exiting...")
-    sys.exit(0)
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="giferinos",
+        description="Generate short GIFs from videos at fixed or randomized intervals.",
+    )
+    parser.add_argument(
+        "-s",
+        "--source",
+        required=True,
+        type=Path,
+        help="folder containing source videos; scanned recursively",
+    )
+    parser.add_argument(
+        "-d",
+        "--destination",
+        required=True,
+        type=Path,
+        help="folder where generated gifs will be written",
+    )
+    parser.add_argument(
+        "-l",
+        "--length",
+        "--gif-length",
+        default=5.0,
+        type=positive_float,
+        help="gif length in seconds (default: 5)",
+    )
+    parser.add_argument(
+        "-b",
+        "--begin",
+        default=0.0,
+        type=non_negative_float,
+        help="seconds to skip before the first gif (default: 0)",
+    )
+    parser.add_argument(
+        "-e",
+        "--every",
+        "--interval",
+        "--skip",
+        "--skip-seconds",
+        dest="interval",
+        default=30.0,
+        type=positive_float,
+        help="seconds to advance before starting the next gif (default: 30)",
+    )
+    parser.add_argument(
+        "--random-min",
+        "-r1",
+        type=positive_float,
+        help="minimum randomized seconds between gifs",
+    )
+    parser.add_argument(
+        "--random-max",
+        "-r2",
+        type=positive_float,
+        help="maximum randomized seconds between gifs",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="seed for repeatable randomized intervals",
+    )
+    parser.add_argument(
+        "--fps",
+        default=12,
+        type=positive_int,
+        help="gif frames per second (default: 12)",
+    )
+    parser.add_argument(
+        "-w",
+        "--width",
+        "--size",
+        "--gif-width",
+        default=480,
+        type=positive_int,
+        help="gif width in pixels; height is preserved (default: 480)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="show the gifs that would be generated without running ffmpeg",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="print ffmpeg commands and extra video details",
+    )
+    return parser.parse_args()
 
 
-signal.signal(signal.SIGINT, signal_handler)
+def positive_float(value: str) -> float:
+    number = float(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError("must be greater than 0")
+    return number
 
 
-def generate_gif(input_file):
-    rel_path = os.path.relpath(input_file, start='.')
-    rel_dir = os.path.dirname(rel_path)
-    base_name = os.path.splitext(os.path.basename(rel_path))[0]
-    output_dir = os.path.join(dest_root, rel_dir, base_name)
-    os.makedirs(output_dir, exist_ok=True)
+def non_negative_float(value: str) -> float:
+    number = float(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be 0 or greater")
+    return number
 
-    video_duration = float(subprocess.check_output(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
-         "default=noprint_wrappers=1:nokey=1",
-         input_file], universal_newlines=True).strip())
 
-    # creating vars for easy reading
-    gif_length = float(args.length)
-    if video_duration < gif_length:
-        print(f"Skipping (shorter than gif length {gif_length}s): {rel_path}")
-        return
+def positive_int(value: str) -> int:
+    number = int(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError("must be greater than 0")
+    return number
 
-    max_start = max(0.0, video_duration - gif_length)
-    # If begin is too late for this video, start at 0 so we still generate gifs
-    begin_time = float(args.begin)
-    if begin_time > max_start:
-        begin_time = 0.0
-    current_time = min(begin_time, max_start)
-    random_start = args.randstart
-    random_end = args.randend
 
-    # workaround for videos in source root folder
-    print("\nCurrent file: " + rel_path)
+def validate_args(args: argparse.Namespace) -> None:
+    if not args.source.exists() or not args.source.is_dir():
+        raise SystemExit(f"Source folder does not exist: {args.source}")
+
+    if (args.random_min is None) != (args.random_max is None):
+        raise SystemExit("Use --random-min and --random-max together.")
+
+    if args.random_min is not None and args.random_min >= args.random_max:
+        raise SystemExit("--random-min must be less than --random-max.")
+
+
+class ScanProgress:
+    def __init__(self) -> None:
+        self.last_scanned = 0
+        self.last_found = 0
+        self.last_message = ""
+        self.last_printed_message = ""
+
+    def __call__(self, scanned: int, found: int) -> None:
+        self.last_scanned = scanned
+        if (
+            sys.stdout.isatty()
+            or scanned == 1
+            or scanned % 25 == 0
+            or found != self.last_found
+        ):
+            message = f"Scanning videos... checked {scanned} file(s), found {found} video(s)"
+            self.last_message = message
+            if sys.stdout.isatty():
+                print(f"\r{message}", end="", flush=True)
+            else:
+                print(message)
+            self.last_printed_message = message
+
+        self.last_found = found
+
+    def finish(self) -> None:
+        message = (
+            f"Scanning videos... checked {self.last_scanned} file(s), "
+            f"found {self.last_found} video(s)"
+        )
+        self.last_message = message
+        if sys.stdout.isatty():
+            print(f"\r{message}")
+        elif message != self.last_printed_message:
+            print(message)
+
+
+def output_dir_for(video_file: Path, source_root: Path, destination_root: Path) -> Path:
+    relative_path = video_file.relative_to(source_root)
+    return destination_root / relative_path.parent / video_file.stem
+
+
+def format_timestamp(timestamp: float) -> str:
+    return f"{timestamp:.3f}".rstrip("0").rstrip(".").replace(".", "_")
+
+
+def ffmpeg_command(
+    ffmpeg: str,
+    video_file: Path,
+    output_file: Path,
+    timestamp: float,
+    length: float,
+    fps: int,
+    width: int,
+) -> list[str]:
+    return [
+        ffmpeg,
+        "-y",
+        "-ss",
+        str(timestamp),
+        "-t",
+        str(length),
+        "-i",
+        str(video_file),
+        "-filter_complex",
+        (
+            f"[0:v] fps={fps},scale=w={width}:h=-1,split [a][b];"
+            "[a] palettegen=stats_mode=single [p];[b][p] paletteuse=new=1"
+        ),
+        str(output_file),
+    ]
+
+
+def generate_gifs_for_video(
+    video_file: Path,
+    source_root: Path,
+    destination_root: Path,
+    args: argparse.Namespace,
+    ffmpeg: str,
+    ffprobe: str,
+    video_number: int,
+    total_videos: int,
+) -> int:
+    try:
+        duration = get_video_duration(video_file, ffprobe)
+    except (subprocess.CalledProcessError, ValueError) as error:
+        print(f"Skipping {video_file}: could not read duration ({error})", file=sys.stderr)
+        return 0
+
+    relative_path = video_file.relative_to(source_root)
+    timestamps = list(
+        build_timestamps(
+            duration=duration,
+            gif_length=args.length,
+            begin=args.begin,
+            interval=args.interval,
+            random_min=args.random_min,
+            random_max=args.random_max,
+            seed=args.seed,
+        )
+    )
+
+    if not timestamps:
+        print(f"Skipping {relative_path}: shorter than {args.length:g}s")
+        return 0
+
+    output_dir = output_dir_for(video_file, source_root, destination_root)
+    if not args.dry_run:
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"[video {video_number}/{total_videos}] {relative_path}: {len(timestamps)} gif(s)")
     if args.verbose:
-        print(f"Duration: {video_duration:.2f}s, gif_length: {gif_length:.2f}s, "
-              f"begin: {begin_time:.2f}s, max_start: {max_start:.2f}s")
+        print(f"  duration={duration:.2f}s output={output_dir}")
 
-    bar = ChargingBar('Processing', max=int(video_duration))
-    # initialize bar
-    bar.goto(0)
+    generated = 0
+    for gif_number, timestamp in enumerate(timestamps, start=1):
+        output_file = output_dir / f"{video_file.stem}-{format_timestamp(timestamp)}s.gif"
+        command = ffmpeg_command(
+            ffmpeg=ffmpeg,
+            video_file=video_file,
+            output_file=output_file,
+            timestamp=timestamp,
+            length=args.length,
+            fps=args.fps,
+            width=args.width,
+        )
 
-    while current_time <= max_start:
-        # creating vars for easy reading
-        output_file = os.path.join(output_dir, f"{base_name}-{int(current_time)}.gif")
-        gif_length_arg = str(gif_length)
+        if args.dry_run:
+            print(f"  [gif {gif_number}/{len(timestamps)}] would create {output_file}")
+            generated += 1
+            continue
 
-        # you can increase the fps=12 and scale=w=480 values with a higher number for smoother/bigger gifs,
-        # increases the file size.
-        ffmpeg_cmd = ['ffmpeg', '-y', '-ss', str(current_time), '-t', gif_length_arg, '-i', input_file,
-                      '-filter_complex',
-                      '[0:v] fps=12,scale=w=480:h=-1,split [a][b];[a] palettegen=stats_mode=single [p];['
-                      'b][p] paletteuse=new=1',
-                      output_file]
+        print(
+            f"  [gif {gif_number}/{len(timestamps)}] creating {output_file.name} "
+            f"from {timestamp:g}s"
+        )
+
         if args.verbose:
-            print("FFmpeg:", " ".join(ffmpeg_cmd))
-        if not args.dry_run:
-            subprocess.check_output(
-                ffmpeg_cmd,
-                stderr=subprocess.STDOUT,
-                universal_newlines=True).strip()
-        bar.goto(int(current_time))
-        current_time = current_time + (random.randrange(random_start, random_end))
-    bar.finish()
+            print("  " + " ".join(command))
+
+        try:
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except subprocess.CalledProcessError as error:
+            print(f"  failed at {timestamp:g}s: {error.stderr.strip()}", file=sys.stderr)
+            continue
+
+        print(f"  [gif {gif_number}/{len(timestamps)}] created {output_file}")
+        generated += 1
+
+    return generated
 
 
-progress_start = time.time()
+def main() -> int:
+    args = parse_args()
+    args.source = args.source.expanduser().resolve()
+    args.destination = args.destination.expanduser().resolve()
+    validate_args(args)
 
-video_files = []
-video_files_populated = False
-spinner = PixelSpinner('Please wait while generating video files list ')
+    source_root = args.source
+    destination_root = args.destination
 
-if args.randstart >= args.randend:
-    raise SystemExit("randstart must be less than randend")
+    try:
+        ffmpeg = require_executable("ffmpeg")
+        ffprobe = require_executable("ffprobe")
+    except RuntimeError as error:
+        raise SystemExit(str(error))
 
-video_extensions = {'.mp4', '.mkv', '.avi', '.mov', '.wmv'}
+    scan_progress = ScanProgress()
+    videos = get_video_files(source_root, on_scanned=scan_progress)
+    scan_progress.finish()
+    if not videos:
+        raise SystemExit(f"No video files found under {source_root}")
 
-while not video_files_populated:
-    for root, dirs, files in os.walk('.'):
-        for name in files:
-            file = os.path.join(root, name)
-            ext = os.path.splitext(file)[1].lower()
-            is_video = ext in video_extensions
+    start = time.monotonic()
+    print(f"Found {len(videos)} video(s)")
 
-            if not is_video:
-                try:
-                    is_video = magic.from_file(file, mime=True).startswith('video')
-                except Exception:
-                    is_video = False
+    generated = 0
+    for video_number, video_file in enumerate(videos, start=1):
+        generated += generate_gifs_for_video(
+            video_file=video_file,
+            source_root=source_root,
+            destination_root=destination_root,
+            args=args,
+            ffmpeg=ffmpeg,
+            ffprobe=ffprobe,
+            video_number=video_number,
+            total_videos=len(videos),
+        )
 
-            if is_video:
-                video_files.append(file)
-                spinner.next()
-    video_files_populated = True
-
-if not video_files:
-    raise SystemExit("No video files found under source path.")
+    elapsed = int(time.monotonic() - start)
+    noun = "gif" if generated == 1 else "gifs"
+    print(f"Done: {generated} {noun} planned/generated in {elapsed}s")
+    return 0
 
 
-for video in range(len(video_files)):
-    generate_gif(video_files[video])
-
-progress_end = time.time()
-total_run = int(progress_end - progress_start)
-print("== FINISHED ==")
-print("Total Runtime: " + str(total_run) + " seconds")
+if __name__ == "__main__":
+    raise SystemExit(main())
